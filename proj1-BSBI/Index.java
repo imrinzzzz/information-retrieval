@@ -1,24 +1,22 @@
 
-
+/* Pada     Kanchanapinpong 6088079 Sec 1
+ * Thanirin Trironnarith    6088122 Sec 1
+ * Wipu     Kumthong        6088095 Sec 1 
+ */
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -56,11 +54,17 @@ public class Index {
 	 * */
 	private static void writePosting(FileChannel fc, PostingList posting)
 			throws IOException {
+			
 		/*
 		 * TODO: Your code here
 		 *	 
 		 */
-		
+		int size = posting.getList().size();
+		long pos = fc.position();
+		Pair<Long,Integer> pair = new Pair<Long,Integer>(pos,size);
+		postingDict.put(posting.getTermId(),pair);
+		//System.out.println(postingDict);
+		index.writePosting(fc, posting);
 	}
 	
 
@@ -116,11 +120,17 @@ public class Index {
 			return -1;
 		}
 		
-		/*	TODO: delete all the files/sub folder under outdir
+		for (File file: outdir.listFiles()) //finding all file and listout
+		{ 
+			if (!file.isDirectory()) //if file is inside 
+			{
+		        file.delete(); //delete
+			}
+		}
+		
+		/*TODO: delete all the files/sub folder under outdir
 		 * 
 		 */
-		
-		
 		if (!outdir.exists()) {
 			if (!outdir.mkdirs()) {
 				System.err.println("Create output directory failure");
@@ -142,7 +152,7 @@ public class Index {
 
 			File blockDir = new File(dataDirname, block.getName());
 			File[] filelist = blockDir.listFiles();
-			
+			TreeMap<Integer, TreeSet<Integer> > blockMap = new TreeMap<Integer, TreeSet<Integer>>();
 			/* For each file */
 			for (File file : filelist) {
 				++totalFileCount;
@@ -155,7 +165,8 @@ public class Index {
 				
 				BufferedReader reader = new BufferedReader(new FileReader(file));
 				String line;
-				while ((line = reader.readLine()) != null) {
+				while ((line = reader.readLine()) != null) 
+				{
 					String[] tokens = line.trim().split("\\s+");
 					for (String token : tokens) {
 						/*
@@ -163,9 +174,22 @@ public class Index {
 						 *       For each term, build up a list of
 						 *       documents in which the term occurs
 						 */
-
+						//System.out.println(termDict);
+						if(termDict.containsKey(token)!= true) //if this term aren't in termdict  
+						{
+							wordIdCounter = wordIdCounter + 1; //add wordcount
+							termDict.put(token, wordIdCounter); //put token with wordcount in termdict
+						}
+						if(blockMap.containsKey(termDict.get(token))!= true) //if it not in blockmap
+						{
+							TreeSet<Integer> t = new TreeSet<Integer>(); //create tree set
+							blockMap.put(termDict.get(token),t); //put in blockmap with new treeset
+						}
+						blockMap.get(termDict.get(token)).add(docDict.get(fileName));
 					}
 				}
+				//System.out.println(termDict);
+				//System.out.println(blockMap);
 				reader.close();
 			}
 
@@ -176,17 +200,24 @@ public class Index {
 			}
 			
 			RandomAccessFile bfc = new RandomAccessFile(blockFile, "rw");
-			
+			FileChannel filechannel = bfc.getChannel();
 			/*
 			 * TODO: Your code here
 			 *       Write all posting lists for all terms to file (bfc) 
 			 */
-			
+			for (int termId : blockMap.keySet()) //loop according to termid inside blockmap
+			{
+				List<Integer> list = new ArrayList<Integer>(blockMap.get(termId)); //get termid from blockmap to list
+				PostingList post = new PostingList(termId,list); //create posting list with termid and list of it as linked list
+				//System.out.println(list);
+				index.writePosting(filechannel,post); //write out
+			}
 			bfc.close();
+			
 		}
 
 		/* Required: output total number of files. */
-		//System.out.println("Total Files Indexed: "+totalFileCount);
+		System.out.println("Total Files Indexed: "+totalFileCount);
 
 		/* Merge blocks */
 		while (true) {
@@ -205,7 +236,12 @@ public class Index {
 			RandomAccessFile bf1 = new RandomAccessFile(b1, "r");
 			RandomAccessFile bf2 = new RandomAccessFile(b2, "r");
 			RandomAccessFile mf = new RandomAccessFile(combfile, "rw");
-			 
+
+			FileChannel bfc1 = bf1.getChannel(); //open file channel for 3 file
+			FileChannel bfc2 = bf2.getChannel();
+			FileChannel mfc = mf.getChannel();
+
+			
 			/*
 			 * TODO: Your code here
 			 *       Combine blocks bf1 and bf2 into our combined file, mf
@@ -213,9 +249,40 @@ public class Index {
 			 *       the two blocks (based on term ID, perhaps?).
 			 *       
 			 */
-			
-			
-			
+			  long pos =0;
+              PostingList p = index.readPosting(bfc1.position(0)); //keep posting list of file bf1
+              Map<Integer,PostingList> merge = new TreeMap<>(); //to keep merge file
+              while(p !=null) 
+              {
+                  merge.put(p.getTermId(),p); //put postinglist into merge map
+                  pos= pos + ( 8+(4*p.getList().size())); //finding postion
+                  p = index.readPosting(bfc1.position(pos)); //keep into postinglist p
+              }
+              pos = 0;
+              p = index.readPosting(bfc2.position(0)); //redo for bfc2
+              while(p != null) //if p contain postinglist inside or not
+              {
+                  if(merge.containsKey(p.getTermId()))  //if in map merge there are this termid
+                  {
+                      for(int i: p.getList()){  //search inside for each termid that also doesn't inside merge map
+                          if(merge.get(p.getTermId()).getList().contains(i) == false)
+                          {
+                              merge.get(p.getTermId()).getList().add(i);// add termid that not contain in map 
+                          }
+                      }          
+                  }
+                  else 
+                  {
+                      merge.put(p.getTermId(),p); //replaced the termid
+                  }
+              pos = pos + (8+(4*p.getList().size())); //update for the next position 
+              p = index.readPosting(bfc2.position(pos));
+              }
+              for(int i: merge.keySet())
+              {
+                  Collections.sort(merge.get(i).getList()); //sort the list in merge
+                  writePosting(mfc, merge.get(i)); //write out
+              }
 			bf1.close();
 			bf2.close();
 			mf.close();
@@ -223,7 +290,6 @@ public class Index {
 			b2.delete();
 			blockQueue.add(combfile);
 		}
-
 		/* Dump constructed index back into file system */
 		File indexFile = blockQueue.removeFirst();
 		indexFile.renameTo(new File(outputDirname, "corpus.index"));
