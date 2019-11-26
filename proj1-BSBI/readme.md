@@ -27,6 +27,7 @@ After that, the **testQuery** method will call another method in the class **Que
   <th colspan="2">Query</th>
 <tr>
 <tr>
+  <td></td>
   <th>Memory used (MB)</th>
   <th>Time used (sec)</th>
   <th>Memory used (MB)</th>
