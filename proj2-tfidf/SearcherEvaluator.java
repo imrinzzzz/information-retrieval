@@ -1,16 +1,13 @@
-//Name: 
-//Section: 
-//ID: 
+/* Pada     Kanchanapinpong 6088079 Sec 1
+ * Thanirin Trironnarith    6088122 Sec 1
+ * Wipu     Kumthong        6088095 Sec 1
+ */
+
+import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import org.apache.commons.io.FileUtils;
+import java.util.*;
 
 public class SearcherEvaluator {
 	private List<Document> queries = null;				//List of test queries. Each query can be treated as a Document object.
@@ -72,7 +69,23 @@ public class SearcherEvaluator {
 	public double[] getQueryPRF(Document query, Searcher searcher, int k)
 	{
 		/*********************** YOUR CODE HERE *************************/
-		return null;
+		HashSet<Integer> trueQuery = (HashSet<Integer>) answers.get(query.getId());
+		List<SearchResult> tryQuery = searcher.search(query.getRawText(), k);
+		HashSet<Integer> truePositive = new HashSet<>();
+		for(SearchResult s: tryQuery) {
+			truePositive.add(s.getDocument().getId());
+		}
+		truePositive.retainAll(trueQuery);
+		double[] topK_prf = new double[3];
+		
+		// Precision
+		topK_prf[0] = tryQuery.size() > 0 ? (truePositive.size() / (double)tryQuery.size()) : 0;
+		// Recall
+		topK_prf[1] = trueQuery.size() > 0 ? (truePositive.size() / (double)trueQuery.size()) : 0;
+		// F1
+		topK_prf[2] = topK_prf[0] > 0 || topK_prf[1] > 0 ? (2*topK_prf[0]*topK_prf[1] / (topK_prf[0] + topK_prf[1])) : 0;
+		
+		return topK_prf;
 		/****************************************************************/
 	}
 	
@@ -86,7 +99,21 @@ public class SearcherEvaluator {
 	public double[] getAveragePRF(Searcher searcher, int k)
 	{
 		/*********************** YOUR CODE HERE *************************/
-		return null;
+		double[] avgPRF = new double[3];
+		double[] prf;
+				
+		for(Document d: queries) {
+			prf = getQueryPRF(d, searcher, k);
+			avgPRF[0] += prf[0];
+			avgPRF[1] += prf[1];
+			avgPRF[2] += prf[2];
+		}
+
+		for (int i = 0; i < avgPRF.length; i++) {
+			avgPRF[i] = avgPRF[i] / queries.size();
+		}
+				
+		return avgPRF;
 		/****************************************************************/
 	}
 }
